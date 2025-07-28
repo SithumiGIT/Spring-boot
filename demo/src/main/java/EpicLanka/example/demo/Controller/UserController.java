@@ -4,6 +4,13 @@ import EpicLanka.example.demo.Repository.UserRepository;
 import EpicLanka.example.demo.Service.UserService;
 import EpicLanka.example.demo.dto.loginDto;
 import EpicLanka.example.demo.entity.User;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/users")  // ✅ Fixed URL mapping
+@RequestMapping("/api/v1/users")
+@Tag(name = "User Authentication", description = "APIs for user registration and authentication")
 public class UserController {
 
     @Autowired
@@ -25,10 +33,34 @@ public class UserController {
     private UserService userService;
 
     @PostMapping("/signup")
-    public ResponseEntity<Map<String, Object>> signup(@Valid @RequestBody User newUser, BindingResult result) {
+    @Operation(
+            summary = "User Registration",
+            description = "Register a new user account in the system"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "User registered successfully"),
+            @ApiResponse(responseCode = "409", description = "User already exists"),
+            @ApiResponse(responseCode = "400", description = "Invalid user data")
+    })
+    public ResponseEntity<Map<String, Object>> signup(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "User registration details",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = User.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "email": "user@example.com",
+                                        "firstName": "John",
+                                        "lastName": "Doe",
+                                        "password": "securePassword123"
+                                    }
+                                    """)
+                    )
+            )
+            @Valid @RequestBody User newUser, BindingResult result) {
         Map<String, Object> response = new HashMap<>();
 
-        // Check for validation errors
         if (result.hasErrors()) {
             response.put("responseCode", "06");
             response.put("responseMsg", "Bad Request");
@@ -36,7 +68,6 @@ public class UserController {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Check for null values (additional validation)
         if (newUser.getEmail() == null || newUser.getFirstName() == null ||
                 newUser.getLastName() == null || newUser.getPassword() == null) {
             response.put("responseCode", "06");
@@ -45,7 +76,6 @@ public class UserController {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Check if user already exists
         if (userService.userExists(newUser.getEmail())) {
             response.put("responseCode", "04");
             response.put("responseMsg", "User Already Exists");
@@ -53,7 +83,6 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
         }
 
-        // Create new user
         try {
             userService.signupUser(newUser.getEmail(), newUser.getFirstName(),
                     newUser.getLastName(), newUser.getPassword());
@@ -70,10 +99,42 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody loginDto user, BindingResult result) {
+    @Operation(
+            summary = "User Login",
+            description = "Authenticate user and receive JWT token"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Login successful",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "responseCode": "00",
+                                        "responseMsg": "Success",
+                                        "content": {
+                                            "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                        }
+                                    }
+                                    """))),
+            @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+            @ApiResponse(responseCode = "400", description = "Invalid request data")
+    })
+    public ResponseEntity<Map<String, Object>> login(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "User login credentials",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = loginDto.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "email": "user@example.com",
+                                        "password": "securePassword123"
+                                    }
+                                    """)
+                    )
+            )
+            @Valid @RequestBody loginDto user, BindingResult result) {
         Map<String, Object> response = new HashMap<>();
 
-        // Check for validation errors
         if (result.hasErrors()) {
             response.put("responseCode", "06");
             response.put("responseMsg", "Bad Request");
@@ -81,7 +142,6 @@ public class UserController {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Check for null values
         if (user.getEmail() == null || user.getPassword() == null) {
             response.put("responseCode", "06");
             response.put("responseMsg", "Bad Request");

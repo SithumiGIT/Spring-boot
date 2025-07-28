@@ -24,7 +24,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        // Skip JWT processing for signup and login endpoints
+
         String path = request.getRequestURI();
         if (path.equals("/api/v1/users/signup") || path.equals("/api/v1/users/login")) {
             filterChain.doFilter(request, response);
@@ -36,34 +36,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String email = null;
         String jwt = null;
 
-        // Check if Authorization header exists and starts with "Bearer "
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            jwt = authorizationHeader.substring(7); // Remove "Bearer " prefix
+            jwt = authorizationHeader.substring(7);
             try {
                 email = jwtUtil.extractEmail(jwt);
             } catch (Exception e) {
-                // Invalid token format - let it pass, Spring Security will handle it
                 System.out.println("Invalid JWT token: " + e.getMessage());
             }
         }
 
-        // If we have email and no authentication is set
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-
-            // Validate token
             if (jwtUtil.validateToken(jwt, email)) {
-                // Create authentication token
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(email, null, new ArrayList<>());
 
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                // Set authentication in security context
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         }
 
-        // Continue with the filter chain
         filterChain.doFilter(request, response);
     }
 }

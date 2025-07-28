@@ -3,6 +3,15 @@ package EpicLanka.example.demo.Controller;
 import EpicLanka.example.demo.Repository.MovieRepository;
 import EpicLanka.example.demo.Service.MovieService;
 import EpicLanka.example.demo.entity.Movie;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +28,8 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/movies")
+@Tag(name = "Movie Management", description = "APIs for managing movies in the Epic Lanka system")
+@SecurityRequirement(name = "Bearer Authentication")
 public class MovieController {
 
     @Autowired
@@ -27,7 +38,6 @@ public class MovieController {
     @Autowired
     private MovieService movieService;
 
-    // Helper method to check if user is authenticated
     private boolean isAuthenticated() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication != null && authentication.isAuthenticated()
@@ -35,10 +45,36 @@ public class MovieController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "Get all movies",
+            description = "Retrieves a list of all movies in the system. Requires JWT authentication."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved movies",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "responseCode": "00",
+                                        "responseMsg": "Success",
+                                        "content": [
+                                            {
+                                                "imdb": "tt1234567",
+                                                "title": "Sample Movie",
+                                                "description": "A great movie",
+                                                "rating": 8.5,
+                                                "category": "Action",
+                                                "year": 2023,
+                                                "imageUrl": "https://example.com/image.jpg"
+                                            }
+                                        ]
+                                    }
+                                    """))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token"),
+            @ApiResponse(responseCode = "400", description = "Bad request")
+    })
     public ResponseEntity<Map<String, Object>> getAllMovies() {
         Map<String, Object> response = new HashMap<>();
 
-        // Check authentication
         if (!isAuthenticated()) {
             response.put("responseCode", "03");
             response.put("responseMsg", "Not Authorized");
@@ -70,10 +106,21 @@ public class MovieController {
     }
 
     @GetMapping("/{imdb}")
-    public ResponseEntity<Map<String, Object>> getMovieByImdb(@PathVariable String imdb) {
+    @Operation(
+            summary = "Get movie by IMDB ID",
+            description = "Retrieves a specific movie by its IMDB identifier"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Movie found successfully"),
+            @ApiResponse(responseCode = "404", description = "Movie not found"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "400", description = "Invalid IMDB ID format")
+    })
+    public ResponseEntity<Map<String, Object>> getMovieByImdb(
+            @Parameter(description = "IMDB ID of the movie", example = "tt1234567")
+            @PathVariable String imdb) {
         Map<String, Object> response = new HashMap<>();
 
-        // Check authentication
         if (!isAuthenticated()) {
             response.put("responseCode", "03");
             response.put("responseMsg", "Not Authorized");
@@ -81,7 +128,6 @@ public class MovieController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
 
-        // Validate IMDB parameter
         if (imdb == null || imdb.trim().isEmpty()) {
             response.put("responseCode", "06");
             response.put("responseMsg", "Bad Request");
@@ -113,7 +159,36 @@ public class MovieController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> addMovie(@Valid @RequestBody Movie movie, BindingResult result) {
+    @Operation(
+            summary = "Add a new movie",
+            description = "Creates a new movie entry in the system"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Movie created successfully"),
+            @ApiResponse(responseCode = "409", description = "Movie already exists"),
+            @ApiResponse(responseCode = "400", description = "Invalid movie data"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<Map<String, Object>> addMovie(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Movie object to be created",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = Movie.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "imdb": "tt1234567",
+                                        "title": "Sample Movie",
+                                        "description": "A great action movie",
+                                        "rating": 8.5,
+                                        "category": "Action",
+                                        "year": 2023,
+                                        "imageUrl": "https://example.com/image.jpg"
+                                    }
+                                    """)
+                    )
+            )
+            @Valid @RequestBody Movie movie, BindingResult result) {
         Map<String, Object> response = new HashMap<>();
 
         if (!isAuthenticated()) {
@@ -123,7 +198,6 @@ public class MovieController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
 
-        // Check for validation errors
         if (result.hasErrors()) {
             response.put("responseCode", "06");
             response.put("responseMsg", "Bad Request");
@@ -131,7 +205,6 @@ public class MovieController {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Additional validation
         if (movie.getImdb() == null || movie.getTitle() == null ||
                 movie.getDescription() == null || movie.getCategory() == null ||
                 movie.getImageUrl() == null || movie.getRating() == null ||
@@ -142,7 +215,6 @@ public class MovieController {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Check if movie already exists
         if (movieService.movieExists(movie.getImdb())) {
             response.put("responseCode", "04");
             response.put("responseMsg", "Movie Already Exists");
@@ -168,10 +240,19 @@ public class MovieController {
     }
 
     @PutMapping
+    @Operation(
+            summary = "Update an existing movie",
+            description = "Updates movie information for an existing movie"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Movie updated successfully"),
+            @ApiResponse(responseCode = "404", description = "Movie not found"),
+            @ApiResponse(responseCode = "400", description = "Invalid movie data"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
     public ResponseEntity<Map<String, Object>> updateMovie(@Valid @RequestBody Movie movie, BindingResult result) {
         Map<String, Object> response = new HashMap<>();
 
-        // Check authentication
         if (!isAuthenticated()) {
             response.put("responseCode", "03");
             response.put("responseMsg", "Not Authorized");
@@ -179,7 +260,6 @@ public class MovieController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
 
-        // Check for validation errors
         if (result.hasErrors()) {
             response.put("responseCode", "06");
             response.put("responseMsg", "Bad Request");
@@ -187,7 +267,6 @@ public class MovieController {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Additional validation
         if (movie.getImdb() == null || movie.getTitle() == null ||
                 movie.getDescription() == null || movie.getCategory() == null ||
                 movie.getImageUrl() == null || movie.getRating() == null ||
@@ -198,7 +277,6 @@ public class MovieController {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Check if movie exists
         if (!movieService.movieExists(movie.getImdb())) {
             response.put("responseCode", "02");
             response.put("responseMsg", "No Such Movie Exists");
@@ -222,10 +300,21 @@ public class MovieController {
         }
     }
 
-    @DeleteMapping("/{imdb}")  // ✅ Fixed - added path variable
-    public ResponseEntity<Map<String, Object>> deleteMovie(@PathVariable String imdb) {
+    @DeleteMapping("/{imdb}")
+    @Operation(
+            summary = "Delete a movie",
+            description = "Removes a movie from the system by IMDB ID"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Movie deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "Movie not found"),
+            @ApiResponse(responseCode = "400", description = "Invalid IMDB ID"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<Map<String, Object>> deleteMovie(
+            @Parameter(description = "IMDB ID of the movie to delete", example = "tt1234567")
+            @PathVariable String imdb) {
         Map<String, Object> response = new HashMap<>();
-
 
         if (!isAuthenticated()) {
             response.put("responseCode", "03");
@@ -234,14 +323,12 @@ public class MovieController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
 
-
         if (imdb == null || imdb.trim().isEmpty()) {
             response.put("responseCode", "06");
             response.put("responseMsg", "Bad Request");
             response.put("content", null);
             return ResponseEntity.badRequest().body(response);
         }
-
 
         if (!movieService.movieExists(imdb)) {
             response.put("responseCode", "02");
